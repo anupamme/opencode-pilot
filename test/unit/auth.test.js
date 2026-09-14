@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { mkdtempSync, readFileSync, rmSync, statSync } from 'fs'
+import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { getOrCreateAuthToken, readAuthToken } from '../../service/auth.js'
@@ -16,6 +16,21 @@ test('creates a stable owner-only authentication token', () => {
     assert.strictEqual(readAuthToken(tokenPath), token)
     assert.strictEqual(getOrCreateAuthToken(tokenPath), token)
     assert.strictEqual(statSync(tokenPath).mode & 0o777, 0o600)
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('rejects token files with unsafe permissions', () => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'opencode-pilot-auth-'))
+  const tokenPath = join(tempDir, 'server.token')
+
+  try {
+    getOrCreateAuthToken(tokenPath)
+    chmodSync(tokenPath, 0o644)
+
+    assert.throws(() => readAuthToken(tokenPath), /unsafe permissions/)
+    assert.throws(() => getOrCreateAuthToken(tokenPath), /unsafe permissions/)
   } finally {
     rmSync(tempDir, { recursive: true, force: true })
   }

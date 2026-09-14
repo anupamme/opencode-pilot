@@ -11,7 +11,7 @@ import { homedir } from 'os'
 import { join } from 'path'
 import YAML from 'yaml'
 import { getVersion } from './version.js'
-import { getOrCreateAuthToken, isValidAuthToken } from './auth.js'
+import { getOrCreateAuthToken, isValidAuthHeader } from './auth.js'
 // Default configuration
 const DEFAULT_HTTP_PORT = 4097
 const DEFAULT_REPOS_CONFIG = join(homedir(), '.config', 'opencode', 'pilot', 'config.yaml')
@@ -39,6 +39,7 @@ function getPortFromConfig() {
 /**
  * Create the HTTP server (health check only)
  * @param {number} port - Port to listen on
+ * @param {string} authToken - Bearer token required for requests
  * @returns {http.Server} The HTTP server
  */
 function createHttpServer_(port, authToken) {
@@ -56,8 +57,7 @@ function createHttpServer_(port, authToken) {
       return
     }
 
-    const bearerToken = req.headers.authorization?.match(/^Bearer\s+(\S+)$/i)?.[1]
-    if (!isValidAuthToken(bearerToken, authToken)) {
+    if (!isValidAuthHeader(req.headers.authorization, authToken)) {
       res.writeHead(401, {
         'Content-Type': 'text/plain',
         'WWW-Authenticate': 'Bearer',

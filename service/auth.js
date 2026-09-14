@@ -1,16 +1,33 @@
 import { randomBytes, timingSafeEqual } from 'crypto'
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { lstatSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { dirname, join } from 'path'
 
 export const DEFAULT_AUTH_TOKEN_PATH = join(homedir(), '.config', 'opencode', 'pilot', 'server.token')
 
+function assertSecureTokenFile(tokenPath) {
+  const fileStats = lstatSync(tokenPath)
+  if (fileStats.isSymbolicLink()) {
+    throw new Error(`Authentication token must not be a symbolic link: ${tokenPath}`)
+  }
+  if ((fileStats.mode & 0o777) !== 0o600) {
+    throw new Error(`Authentication token has unsafe permissions: ${tokenPath}`)
+  }
+  if (typeof process.getuid === 'function' && fileStats.uid !== process.getuid()) {
+    throw new Error(`Authentication token has unsafe ownership: ${tokenPath}`)
+  }
+}
+
 export function readAuthToken(tokenPath = DEFAULT_AUTH_TOKEN_PATH) {
   try {
+    assertSecureTokenFile(tokenPath)
     const token = readFileSync(tokenPath, 'utf8').trim()
     return token || null
-  } catch {
-    return null
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return null
+    }
+    throw err
   }
 }
 
@@ -19,7 +36,6 @@ export function getOrCreateAuthToken(tokenPath = DEFAULT_AUTH_TOKEN_PATH) {
 
   const existingToken = readAuthToken(tokenPath)
   if (existingToken) {
-    chmodSync(tokenPath, 0o600)
     return existingToken
   }
 
@@ -36,7 +52,6 @@ export function getOrCreateAuthToken(tokenPath = DEFAULT_AUTH_TOKEN_PATH) {
     if (!concurrentToken) {
       throw new Error(`Could not read authentication token at ${tokenPath}`)
     }
-    chmodSync(tokenPath, 0o600)
     return concurrentToken
   }
 }
@@ -45,13 +60,13 @@ export function createAuthHeaders(token) {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-export function isValidAuthToken(providedToken, expectedToken) {
-  if (!providedToken || !expectedToken) {
+export function isValidAuthHeader(header, expectedToken) {
+  if (typeof header !== 'string' || !expectedToken) {
     return false
   }
 
-  const provided = Buffer.from(providedToken)
-  const expected = Buffer.from(expectedToken)
+  const provided = Buffer.from(header)
+  const expected = Buffer.from(`Bearer ${expectedToken}`)
   if (provided.length !== expected.length) {
     return false
   }
