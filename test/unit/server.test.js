@@ -53,22 +53,41 @@ describe('service/server.js', () => {
 
   });
 
-  describe('CORS', () => {
-    test('OPTIONS returns CORS headers', async () => {
+  describe('cross-origin requests', () => {
+    test('rejects cross-origin health requests', async () => {
       const { startService } = await import('../../service/server.js');
-      
-      service = await startService({ 
+
+      service = await startService({
         httpPort: 0,
-        enablePolling: false 
+        enablePolling: false
       });
-      
+
       const port = service.httpServer.address().port;
-      const res = await fetch(`http://localhost:${port}/health`, {
-        method: 'OPTIONS'
+      const res = await fetch(`http://127.0.0.1:${port}/health`, {
+        headers: { Origin: 'https://attacker.example' }
       });
-      
-      assert.strictEqual(res.status, 204);
-      assert.strictEqual(res.headers.get('access-control-allow-origin'), '*');
+
+      assert.strictEqual(res.status, 403);
+    });
+
+    test('rejects cross-origin preflight requests', async () => {
+      const { startService } = await import('../../service/server.js');
+
+      service = await startService({
+        httpPort: 0,
+        enablePolling: false
+      });
+
+      const port = service.httpServer.address().port;
+      const res = await fetch(`http://127.0.0.1:${port}/health`, {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'https://attacker.example',
+          'Access-Control-Request-Method': 'GET'
+        }
+      });
+
+      assert.strictEqual(res.status, 403);
     });
   });
 
@@ -115,6 +134,8 @@ describe('service/server.js', () => {
       });
       
       assert.ok(localService.httpServer, 'Should have httpServer');
+      assert.strictEqual(localService.httpServer.address().address, '127.0.0.1');
+
       assert.strictEqual(localService.pollingState, null, 'Should not have pollingState when disabled');
       
       const port = localService.httpServer.address().port;
@@ -162,25 +183,4 @@ describe('service/server.js', () => {
     });
   });
 
-  describe('CORS headers', () => {
-    test('OPTIONS includes all required headers', async () => {
-      const { startService } = await import('../../service/server.js');
-      
-      service = await startService({ 
-        httpPort: 0,
-        enablePolling: false 
-      });
-      
-      const port = service.httpServer.address().port;
-      const res = await fetch(`http://localhost:${port}/anything`, {
-        method: 'OPTIONS'
-      });
-      
-      assert.strictEqual(res.status, 204);
-      assert.strictEqual(res.headers.get('access-control-allow-origin'), '*');
-      assert.strictEqual(res.headers.get('access-control-allow-methods'), 'GET, OPTIONS');
-      assert.ok(res.headers.get('access-control-allow-headers').includes('Content-Type'));
-      assert.strictEqual(res.headers.get('access-control-max-age'), '86400');
-    });
-  });
 });

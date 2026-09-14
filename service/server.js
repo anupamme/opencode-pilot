@@ -44,21 +44,20 @@ function getPortFromConfig() {
 function createHttpServer_(port) {
   const server = createHttpServer(async (req, res) => {
     const url = new URL(req.url, `http://localhost:${port}`)
-    
-    // Reject cross-origin requests; this service is intended for local use only
+
     if (req.headers.origin) {
       res.writeHead(403, { 'Content-Type': 'text/plain' })
       res.end('Forbidden')
       return
     }
-    
+
     // OPTIONS - CORS preflight
     if (req.method === 'OPTIONS') {
       res.writeHead(204)
       res.end()
       return
     }
-    
+
     // GET /health - Health check with version
     if (req.method === 'GET' && url.pathname === '/health') {
       const version = getVersion()
@@ -99,7 +98,7 @@ export async function startService(config = {}) {
   
   // Start HTTP server
   await new Promise((resolve, reject) => {
-    httpServer.listen(httpPort, () => {
+    httpServer.listen(httpPort, '127.0.0.1', () => {
       const actualPort = httpServer.address().port
       console.log(`[opencode-pilot] HTTP server listening on port ${actualPort}`)
       resolve()
