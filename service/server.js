@@ -51,7 +51,6 @@ function createHttpServer_(port) {
       return
     }
 
-    // OPTIONS - CORS preflight
     if (req.method === 'OPTIONS') {
       res.writeHead(204)
       res.end()
